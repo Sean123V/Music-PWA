@@ -1,1 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Music Library PWA</title>
+    
+    <!-- PWA Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#00fff7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Music Library">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="msapplication-TileColor" content="#00fff7">
+    <meta name="msapplication-TileImage" content="icons/icon-144x144.png">
+    
+    <!-- PWA Script -->
+    <script src="pwa.js" defer></script>
+    
+    <style>
+        .pwa-badge {
+            display: inline-block;
+            background: linear-gradient(145deg, #00fff7, #00aaa5);
+            color: black;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        .offline-badge {
+            display: inline-block;
+            background: linear-gradient(145deg, #ffd700, #ffaa00);
+            color: black;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        .new-feature {
+            border: 2px solid #00fff7;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(0, 255, 247, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 247, 0.6); }
+            100% { box-shadow: 0 0 10px rgba(0, 255, 247, 0.3); }
+        }
+        
+        .database-badge {
+            display: inline-block;
+            background: linear-gradient(145deg, #aa00ff, #7700cc);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        
+        .tech-item {
+            background: rgba(0, 255, 247, 0.1);
+            padding: 8px 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 247, 0.3);
+            font-size: 14px;
+        }
+        
+        /* PWA Install Button Animation */
+        @keyframes installPulse {
+            0% { transform: scale(1); box-shadow: 0 5px 20px rgba(0, 255, 247, 0.5); }
+            50% { transform: scale(1.05); box-shadow: 0 5px 30px rgba(0, 255, 247, 0.8); }
+            100% { transform: scale(1); box-shadow: 0 5px 20px rgba(0, 255, 247, 0.5); }
+        }
+        
+        .pwa-install-section {
+            text-align: center;
+            margin: 40px 0;
+            padding: 30px;
+            background: rgba(0, 255, 247, 0.1);
+            border-radius: 15px;
+            border: 2px solid #00fff7;
+        }
+    </style>
+</head>
+<body>
 
+<header class="app-header">
+    <h1>Music Library <span class="pwa-badge">PWA</span></h1>
+    <p>Your personal music collection that works everywhere</p>
+    <div class="tech-stack">
+        <span class="tech-item">Progressive Web App</span>
+        <span class="tech-item">Works Offline</span>
+        <span class="tech-item">SQLite Database</span>
+        <span class="tech-item">IndexedDB</span>
+        <span class="tech-item">Wikipedia Integration</span>
+    </div>
+</header>
+
+<section class="instructions-section">
+    <h2>🎵 Welcome to Your Advanced Music Library</h2>
+    
+    <div class="feature-cards">
+        <div class="feature-card">
+            <h3>🎵 Upload Music <span class="offline-badge">OFFLINE</span></h3>
+            <p>Add your own audio files directly in your browser. Files are stored locally using IndexedDB and work completely offline.</p>
+            <small><strong>Supports:</strong> MP3, WAV, OGG, M4A, FLAC</small>
+        </div>
+        
+        <div class="feature-card">
+            <h3>📋 Smart Playlists <span class="offline-badge">OFFLINE</span></h3>
+            <p>Create custom playlists that sync between devices. Mix your uploaded songs with Billboard's Top 50 hits.</p>
+            <small><strong>Features:</strong> Drag & drop, playlist playback, smart suggestions</small>
+        </div>
+        
+        <div class="feature-card new-feature">
+            <h3>⭐ Top 50 Database <span class="database-badge">SQL</span></h3>
+            <p>Access Billboard's Top 50 songs with real-time Wikipedia scraping. Full SQL database with search, filter, and export.</p>
+            <small><strong>Includes:</strong> Rank, Artist, Year, Genre, Description</small>
+        </div>
+        
+        <div class="feature-card">
+            <h3>🌐 Progressive Web App <span class="pwa-badge">PWA</span></h3>
+            <p>Install as a native app on your phone or computer. Works offline, sends push notifications, and loads instantly.</p>
+            <small><strong>Features:</strong> Install to home screen, offline access, fast loading</small>
+        </div>
+        
+        <div class="feature-card">
+            <h3>🔍 Smart Search <span class="offline-badge">AI-Powered</span></h3>
+            <p>Search across your uploaded songs AND Billboard's Top 50 database simultaneously. Intelligent suggestions as you type.</p>
+            <small><strong>Search by:</strong> Title, Artist, Genre, Year</small>
+        </div>
+        
+        <div class="feature-card">
+            <h3>📱 Cross-Platform <span class="pwa-badge">RESPONSIVE</span></h3>
+            <p>Perfectly optimized for mobile, tablet, and desktop. Install on iOS, Android, Windows, or macOS.</p>
+            <small><strong>Design:</strong> Mobile-first, touch-friendly, dark mode</small>
+        </div>
+    </div>
+    
+    <!-- PWA INSTALLATION SECTION -->
+    <div class="pwa-install-section">
+        <h2 style="color: #00fff7;">📱 Install as Native App</h2>
+        <p style="color: #aaa; margin-bottom: 20px; max-width: 600px; margin-left: auto; margin-right: auto;">
+            Get the full app experience on your device! Once installed, it will appear on your home screen and work offline.
+        </p>
+        
+        <button onclick="installApp()" id="mainInstallBtn" class="cyber-button" 
+                style="background: linear-gradient(145deg, #00ff88, #00aa55); color: black; padding: 15px 35px; font-size: 18px; display: none;">
+            📱 Install Music Library App
+        </button>
+        
+        <div id="installStatus" style="margin-top: 15px; color: #888; font-size: 14px;">
+            <p>Click the button above when it appears, or follow these instructions:</p>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px;">
+            <h4 style="color: #00fff7; margin-bottom: 10px;">📲 Installation Guide:</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; text-align: left;">
+                <div style="flex: 1; min-width: 200px;">
+                    <strong>Chrome/Edge:</strong>
+                    <ul style="font-size: 13px; margin-top: 5px;">
+                        <li>Click "Install" button above</li>
+                        <li>Or look for 📱 icon in address bar</li>
+                    </ul>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <strong>Safari (iPhone):</strong>
+                    <ul style="font-size: 13px; margin-top: 5px;">
+                        <li>Tap Share button</li>
+                        <li>Scroll to "Add to Home Screen"</li>
+                        <li>Tap "Add"</li>
+                    </ul>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <strong>Android Chrome:</strong>
+                    <ul style="font-size: 13px; margin-top: 5px;">
+                        <li>Tap menu (⋮)</li>
+                        <li>Select "Add to Home screen"</li>
+                        <li>Tap "Add"</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <h2>🚀 How It Works</h2>
+    <div class="feature-cards">
+        <div class="feature-card" style="text-align: center;">
+            <h3>1. Upload & Store</h3>
+            <p>Drag & drop your music files. They're encrypted and stored locally in your browser using IndexedDB.</p>
+            <div style="font-size: 24px;">📁 → 🗄️ → 🔒</div>
+        </div>
+        
+        <div class="feature-card" style="text-align: center;">
+            <h3>2. Organize & Play</h3>
+            <p>Create playlists, mix songs, and enjoy seamless playback with full audio controls.</p>
+            <div style="font-size: 24px;">🎵 + 🎵 = 📋 → ▶️</div>
+        </div>
+        
+        <div class="feature-card" style="text-align: center;">
+            <h3>3. Discover & Explore</h3>
+            <p>Access Billboard's Top 50 through Wikipedia scraping. Add hits to your playlists.</p>
+            <div style="font-size: 24px;">🌐 → 🗃️ → ⭐</div>
+        </div>
+    </div>
+    
+    <h2>🔧 Technology Stack</h2>
+    <div class="storage-info">
+        <h3>Frontend</h3>
+        <ul>
+            <li><strong>HTML5/CSS3/JavaScript</strong> - Modern web standards</li>
+            <li><strong>IndexedDB</strong> - Client-side database for your music</li>
+            <li><strong>Service Workers</strong> - Offline functionality & caching</li>
+            <li><strong>PWA Manifest</strong> - Install as native app</li>
+        </ul>
+        
+        <h3>Backend</h3>
+        <ul>
+            <li><strong>Node.js + Express</strong> - Fast server framework</li>
+            <li><strong>SQLite Database</strong> - Billboard Top 50 songs with full CRUD operations</li>
+            <li><strong>Web Scraping</strong> - Real-time data from Wikipedia using Axios & Cheerio</li>
+            <li><strong>RESTful API</strong> - Complete API for database operations</li>
+        </ul>
+        
+        <h3>Database Operations</h3>
+        <ul>
+            <li><strong>CREATE TABLE</strong> - Structured schema for songs</li>
+            <li><strong>INSERT</strong> - Add Wikipedia-scraped data</li>
+            <li><strong>SELECT</strong> - Query with search, filters, sorting</li>
+            <li><strong>DELETE/CLEAR</strong> - Full database management</li>
+            <li><strong>EXPORT</strong> - Download data as JSON</li>
+        </ul>
+    </div>
+    
+    <h2>📖 How to Use This Website</h2>
+    <ol class="instructions-list">
+        <li><strong>Upload Songs</strong> - Drag & drop audio files to build your personal library</li>
+        <li><strong>Create Playlists</strong> - Organize songs into custom playlists for different moods</li>
+        <li><strong>Top 50 Database</strong> - Explore Billboard hits scraped from Wikipedia</li>
+        <li><strong>Smart Search</strong> - Search across both your library and Top 50 database</li>
+        <li><strong>Install as PWA</strong> - Click "Install" in your browser to add to home screen</li>
+        <li><strong>Go Offline</strong> - Once loaded, works completely without internet</li>
+    </ol>
+    
+    <div class="storage-info new-feature">
+        <h3>🔐 Privacy & Security</h3>
+        <p>Your data stays on your device - we don't store anything on our servers:</p>
+        <ul>
+            <li>✅ <strong>No Registration Required</strong> - Completely anonymous</li>
+            <li>✅ <strong>Local Storage Only</strong> - Music stays in your browser</li>
+            <li>✅ <strong>Encrypted Storage</strong> - Files are stored securely</li>
+            <li>✅ <strong>No Tracking</strong> - We don't collect any personal data</li>
+            <li>✅ <strong>Offline First</strong> - Works without internet connection</li>
+            <li>⚠️ <strong>Browser Data</strong> - Clearing browser cache will remove your music</li>
+        </ul>
+    </div>
+    
+    <div class="storage-info">
+        <h3>⚡ Performance Features</h3>
+        <ul>
+            <li><strong>Instant Loading</strong> - Service Worker caches all pages</li>
+            <li><strong>Background Sync</strong> - Uploads continue even if you go offline</li>
+            <li><strong>Push Notifications</strong> - Get updates about new features</li>
+            <li><strong>Responsive Design</strong> - Perfect on any screen size</li>
+            <li><strong>Fast Database</strong> - SQLite queries return in milliseconds</li>
+            <li><strong>Smart Caching</strong> - Frequently played songs load instantly</li>
+        </ul>
+    </div>
+    
+    <!-- APP ACTION BUTTONS -->
+    <div style="text-align: center; margin: 40px 0; padding: 20px; background: rgba(0, 255, 247, 0.05); border-radius: 15px;">
+        <h3>Ready to Start?</h3>
+        <p>Begin by uploading your music or exploring the Top 50 Billboard hits!</p>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+            <button onclick="window.location.href='upload.html'" class="cyber-button" style="padding: 12px 25px;">
+                🎵 Upload Your Music
+            </button>
+            <button onclick="window.location.href='top-songs.html'" class="cyber-button" 
+                    style="background: linear-gradient(145deg, #ffd700, #ffaa00); color: black; padding: 12px 25px;">
+                ⭐ Explore Top 50 Songs
+            </button>
+            <button onclick="window.location.href='playlist.html'" class="cyber-button" style="padding: 12px 25px;">
+                📋 Create Playlists
+            </button>
+        </div>
+    </div>
+</section>
+
+<div class="bottom-nav">
+    <a href="index.html"><button class="active">🏠 Home</button></a>
+    <a href="upload.html"><button>📤 Upload</button></a>  
+    <a href="playlist.html"><button>📋 Playlists</button></a>
+    <a href="top-songs.html"><button>⭐ Top 50</button></a>
+</div>
+
+<!-- PWA INSTALLATION SCRIPT -->
+<script>
+    // REAL PWA Installation Handler
+    let installPrompt = null;
+    let isAlreadyInstalled = false;
+    
+    // Check if already installed
+    function checkIfInstalled() {
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            isAlreadyInstalled = true;
+            console.log('✅ Already installed as app!');
+            updateInstallUI();
+            return true;
+        }
+        return false;
+    }
+    
+    // Update UI based on install state
+    function updateInstallUI() {
+        const mainInstallBtn = document.getElementById('mainInstallBtn');
+        const installStatus = document.getElementById('installStatus');
+        
+        if (isAlreadyInstalled) {
+            if (mainInstallBtn) {
+                mainInstallBtn.style.display = 'none';
+            }
+            if (installStatus) {
+                installStatus.innerHTML = '<p style="color:#00ff88;">✅ App is installed! Open it from your home screen.</p>';
+            }
+            return;
+        }
+        
+        if (installPrompt && mainInstallBtn) {
+            mainInstallBtn.style.display = 'block';
+            mainInstallBtn.style.animation = 'installPulse 2s infinite';
+            
+            if (installStatus) {
+                installStatus.innerHTML = '<p style="color:#00fff7;">✅ Ready to install! Click the button above.</p>';
+            }
+        } else if (mainInstallBtn) {
+            mainInstallBtn.style.display = 'none';
+            
+            if (installStatus) {
+                installStatus.innerHTML = `
+                    <p>Installation options:</p>
+                    <ul style="text-align: left; max-width: 400px; margin: 10px auto;">
+                        <li><strong>Desktop:</strong> Look for 📱 icon in address bar</li>
+                        <li><strong>Mobile:</strong> Use browser menu → "Add to Home Screen"</li>
+                        <li><strong>Refresh page</strong> if button doesn't appear</li>
+                    </ul>
+                `;
+            }
+        }
+    }
+    
+    // Handle install prompt from browser
+    window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('🎯 PWA install available!');
+        e.preventDefault();
+        installPrompt = e;
+        updateInstallUI();
+        
+        // Also create floating install button
+        setTimeout(createFloatingInstallButton, 1000);
+    });
+    
+    // Create floating install button
+    function createFloatingInstallButton() {
+        if (isAlreadyInstalled || !installPrompt) return;
+        
+        // Check if button already exists
+        if (document.getElementById('floatingInstallBtn')) return;
+        
+        const floatingBtn = document.createElement('button');
+        floatingBtn.id = 'floatingInstallBtn';
+        floatingBtn.innerHTML = '📱 INSTALL';
+        floatingBtn.style.cssText = `
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: linear-gradient(145deg, #00fff7, #0088ff);
+            color: black;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 9999;
+            box-shadow: 0 5px 20px rgba(0, 255, 247, 0.5);
+            animation: installPulse 2s infinite;
+        `;
+        
+        floatingBtn.onclick = installApp;
+        document.body.appendChild(floatingBtn);
+    }
+    
+    // Main install function
+    window.installApp = function() {
+        if (isAlreadyInstalled) {
+            alert('App is already installed! Check your home screen.');
+            return;
+        }
+        
+        if (!installPrompt) {
+            alert('Installation not available yet. Please:\n\n1. Wait a few seconds\n2. Refresh the page\n3. Check browser settings');
+            return;
+        }
+        
+        console.log('Triggering installation...');
+        
+        // Show the install prompt
+        installPrompt.prompt();
+        
+        // Wait for the user to respond
+        installPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('✅ User accepted installation');
+                isAlreadyInstalled = true;
+                
+                // Show success message
+                const installStatus = document.getElementById('installStatus');
+                if (installStatus) {
+                    installStatus.innerHTML = '<p style="color:#00ff88;">✅ Installation started! Check your home screen.</p>';
+                }
+                
+                alert('🎵 Music Library is installing!\n\nIt will appear on your home screen shortly.');
+                
+                // Remove floating button
+                const floatingBtn = document.getElementById('floatingInstallBtn');
+                if (floatingBtn) floatingBtn.remove();
+                
+            } else {
+                console.log('❌ User dismissed installation');
+                alert('Installation cancelled. You can install later from the browser menu.');
+            }
+            
+            // Clear the prompt
+            installPrompt = null;
+            updateInstallUI();
+        });
+    };
+    
+    // Check service worker registration
+    function checkServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                if (registrations.length > 0) {
+                    console.log('✅ Service Worker registered');
+                } else {
+                    console.log('⚠️ No Service Worker registered');
+                }
+            });
+        }
+    }
+    
+    // Initialize everything when page loads
+    window.addEventListener('load', () => {
+        console.log('🎵 Music Library PWA loading...');
+        
+        // Check if already installed
+        checkIfInstalled();
+        
+        // Check service worker
+        checkServiceWorker();
+        
+        // Initial UI update
+        updateInstallUI();
+        
+        // Add some debug info to console
+        console.log('=== PWA Status ===');
+        console.log('Installed:', isAlreadyInstalled);
+        console.log('Install Prompt:', !!installPrompt);
+        console.log('Manifest:', document.querySelector('link[rel="manifest"]')?.href);
+    });
+    
+    // Online/offline status
+    window.addEventListener('online', () => {
+        console.log('🌐 You are online!');
+    });
+    
+    window.addEventListener('offline', () => {
+        console.log('📴 You are offline! App will still work.');
+    });
+</script>
+
+</body>
+</html>

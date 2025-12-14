@@ -1,0 +1,30 @@
+1. OPEN THE WEBSITE
+   - Open index.html in your browser
+   - Or host on a web server
+
+2. INSTALL AS APP:
+   On Desktop (Chrome/Edge):
+   - Look for the "Install" button on the page
+   - Or click the 📱 icon in the address bar
+   - Follow the installation prompts
+
+   On Mobile (Android Chrome):
+   - Tap the menu (⋮)
+   - Select "Add to Home screen"
+   - Confirm installation
+
+   On iPhone (Safari):
+   - Tap the Share button
+   - Scroll down to "Add to Home Screen"
+   - Tap "Add"
+
+3. OFFLINE USAGE:
+   - Once installed, the app works offline
+   - Your music stays on your device
+   - No internet required after first visit
+
+4. TROUBLESHOOTING:
+   - Make sure all files are in the same folder
+   - Icons must be in "icons/" folder
+   - Use HTTPS for full PWA features
+   - Clear browser cache if icons don't appear

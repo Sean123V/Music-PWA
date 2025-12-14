@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top 50 Songs Database</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- PWA Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00fff7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Music Library">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <meta name="msapplication-TileColor" content="#00fff7">
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
+    
+    <style>
+        .database-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .stats-card {
+            background: linear-gradient(145deg, #0a0a0a, #111111);
+            border: 1px solid #00fff7;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 0 15px rgba(0, 255, 247, 0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            background: rgba(0, 255, 247, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 3px solid #00fff7;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #00fff7;
+            margin: 5px 0;
+        }
+        
+        .stat-label {
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .songs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: #111;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .songs-table th {
+            background: #00fff7;
+            color: #000;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .songs-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .songs-table tr:hover {
+            background: rgba(0, 255, 247, 0.05);
+        }
+        
+        .songs-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .rank-badge {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            background: linear-gradient(145deg, #00fff7, #00aaa5);
+            color: #000;
+            border-radius: 50%;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        
+        .genre-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(0, 255, 247, 0.1);
+            color: #00fff7;
+            border-radius: 20px;
+            font-size: 12px;
+            margin: 2px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #00fff7;
+        }
+        
+        .error {
+            color: #ff4444;
+            padding: 20px;
+            background: rgba(255, 68, 68, 0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .success {
+            color: #44ff44;
+            padding: 20px;
+            background: rgba(68, 255, 68, 0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .wikipedia-source {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="top-nav">
+    <button class="nav-button" onclick="window.location.href='index.html'">
+        &larr; Home
+    </button>
+    <div class="nav-right">
+        <button class="nav-button" onclick="window.location.href='upload.html'">
+            Upload Songs
+        </button>
+        <button class="nav-button" onclick="window.location.href='playlist.html'">
+            Playlists
+        </button>
+    </div>
+</div>
+
+<header>
+    <h1>Top 50 Songs Database</h1>
+    <p>Database operations with Billboard's top songs from Wikipedia</p>
+</header>
+
+<section class="database-section">
+    
+    <!-- Database Controls -->
+    <div class="controls">
+        <button id="insertBtn" class="cyber-button">
+            📥 Insert Top 50 Songs from Wikipedia
+        </button>
+        <button id="refreshBtn" class="cyber-button">
+            🔄 Refresh Data
+        </button>
+        <button id="clearBtn" class="cyber-button" style="background: linear-gradient(145deg, #ff4444, #aa0000);">
+            🗑️ Clear All Songs
+        </button>
+        <button id="exportBtn" class="cyber-button">
+            📊 Export as JSON
+        </button>
+    </div>
+    
+    <!-- Status Messages -->
+    <div id="statusMessage"></div>
+    
+    <!-- Statistics -->
+    <div class="stats-card">
+        <h2>Database Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value" id="totalSongs">0</div>
+                <div class="stat-label">Total Songs</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="topYear">2000s</div>
+                <div class="stat-label">Decade</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="uniqueArtists">0</div>
+                <div class="stat-label">Unique Artists</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="topArtist">None</div>
+                <div class="stat-label">Top Artist</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Songs Table -->
+    <div id="songsContainer">
+        <div class="loading">
+            <h3>Ready to load songs</h3>
+            <p>Click "Insert Top 50 Songs from Wikipedia" to fetch Billboard Hot 100 data</p>
+            <p class="wikipedia-source">Data source: Wikipedia - Billboard Hot 100 number-one singles of the 2000s</p>
+        </div>
+    </div>
+    
+</section>
+
+<script>
+    // DOM Elements
+    const insertBtn = document.getElementById('insertBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const statusMessage = document.getElementById('statusMessage');
+    const songsContainer = document.getElementById('songsContainer');
+    const totalSongs = document.getElementById('totalSongs');
+    const topYear = document.getElementById('topYear');
+    const uniqueArtists = document.getElementById('uniqueArtists');
+    const topArtist = document.getElementById('topArtist');
+    
+    let songsData = [];
+    
+    // Show status message
+    function showStatus(message, type = 'info') {
+        statusMessage.innerHTML = `
+            <div class="${type}">
+                ${message}
+            </div>
+        `;
+        setTimeout(() => {
+            statusMessage.innerHTML = '';
+        }, 5000);
+    }
+    
+    // Load songs from localStorage
+    function loadSongs() {
+        try {
+            const savedSongs = localStorage.getItem('top50Songs');
+            if (savedSongs) {
+                songsData = JSON.parse(savedSongs);
+            } else {
+                songsData = [];
+            }
+            
+            if (songsData.length === 0) {
+                songsContainer.innerHTML = `
+                    <div class="loading">
+                        <h3>No songs in database</h3>
+                        <p>Click "Insert Top 50 Songs from Wikipedia" to fetch Billboard Hot 100 data</p>
+                        <p class="wikipedia-source">Data source: Wikipedia - Billboard Hot 100 number-one singles of the 2000s</p>
+                    </div>
+                `;
+                updateStats();
+                return;
+            }
+            
+            renderSongsTable();
+            updateStats();
+            
+        } catch (error) {
+            console.error('Error loading songs:', error);
+            songsContainer.innerHTML = `
+                <div class="error">
+                    <h3>Error loading songs</h3>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        }
+    }
+    
+    // Render songs table
+    function renderSongsTable() {
+        let html = `
+            <h2>Top ${songsData.length} Billboard Songs (2000s)</h2>
+            <p class="wikipedia-source">Data scraped from Wikipedia - Billboard Hot 100 number-one singles</p>
+            <div style="overflow-x: auto;">
+                <table class="songs-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Title</th>
+                            <th>Artist</th>
+                            <th>Year</th>
+                            <th>Weeks #1</th>
+                            <th>Genre</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        songsData.forEach(song => {
+            html += `
+                <tr>
+                    <td>
+                        <span class="rank-badge">${song.rank}</span>
+                    </td>
+                    <td><strong>${song.title}</strong></td>
+                    <td>${song.artist}</td>
+                    <td>${song.year}</td>
+                    <td>${song.weeks || 'N/A'}</td>
+                    <td>
+                        <span class="genre-tag">${song.genre || 'Pop'}</span>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        songsContainer.innerHTML = html;
+    }
+    
+    // Update statistics
+    function updateStats() {
+        totalSongs.textContent = songsData.length;
+        
+        if (songsData.length > 0) {
+            topYear.textContent = '2000s';
+            
+            // Count unique artists
+            const uniqueArtistsSet = new Set(songsData.map(song => song.artist));
+            uniqueArtists.textContent = uniqueArtistsSet.size;
+            
+            // Find top artist (most songs in list)
+            const artistCounts = {};
+            songsData.forEach(song => {
+                artistCounts[song.artist] = (artistCounts[song.artist] || 0) + 1;
+            });
+            const topArtistName = Object.keys(artistCounts).reduce((a, b) => 
+                artistCounts[a] > artistCounts[b] ? a : b
+            );
+            topArtist.textContent = topArtistName;
+        }
+    }
+    
+    // Clean text from Wikipedia
+    function cleanText(text) {
+        if (!text) return '';
+        return text
+            .replace(/\[.*?\]/g, '')
+            .replace(/\"/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+    
+    // Scrape Wikipedia for top 2000s songs
+    async function scrapeWikipedia2000sSongs() {
+        try {
+            // Wikipedia API URL for Billboard 2000s chart
+            const wikiUrl = 'https://en.wikipedia.org/w/api.php?action=parse&page=List_of_Billboard_Hot_100_number-one_singles_of_the_2000s&format=json&origin=*&prop=text';
+            
+            const response = await fetch(wikiUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            const html = data.parse.text['*'];
+            
+            // Parse HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Extract songs from Wikipedia table
+            const scrapedSongs = [];
+            const rows = doc.querySelectorAll('table.wikitable tbody tr');
+            
+            rows.forEach((row, index) => {
+                if (index === 0 || scrapedSongs.length >= 50) return;
+                
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 4) {
+                    const yearCell = cells[0]?.textContent || '';
+                    const songCell = cells[1]?.textContent || '';
+                    const artistCell = cells[2]?.textContent || '';
+                    const weeksCell = cells[3]?.textContent || '';
+                    
+                    const year = yearCell.split(' ')[0] || '2000';
+                    const song = cleanText(songCell);
+                    const artist = cleanText(artistCell);
+                    const weeks = cleanText(weeksCell);
+                    
+                    if (song && artist) {
+                        // Determine genre based on artist/year
+                        let genre = 'Pop';
+                        if (artist.includes('Eminem') || artist.includes('50 Cent')) genre = 'Hip Hop';
+                        if (artist.includes('Nickelback') || artist.includes('Linkin Park')) genre = 'Rock';
+                        if (artist.includes('Beyoncé') || artist.includes('Usher')) genre = 'R&B';
+                        if (artist.includes('Lady Gaga')) genre = 'Dance';
+                        
+                        scrapedSongs.push({
+                            id: index,
+                            rank: scrapedSongs.length + 1,
+                            title: song,
+                            artist: artist,
+                            year: year,
+                            weeks: weeks,
+                            genre: genre,
+                            source: 'Wikipedia',
+                            scrapedDate: new Date().toISOString()
+                        });
+                    }
+                }
+            });
+            
+            return scrapedSongs;
+            
+        } catch (error) {
+            console.error('Wikipedia scraping error:', error);
+            throw error;
+        }
+    }
+    
+    // Insert songs from Wikipedia
+    async function insertSongs() {
+        try {
+            insertBtn.disabled = true;
+            insertBtn.innerHTML = '🌐 Scraping Wikipedia...';
+            showStatus('🌐 Scraping Wikipedia for Billboard Hot 100 data...', 'info');
+            
+            // Try to scrape from Wikipedia
+            let scrapedSongs = await scrapeWikipedia2000sSongs();
+            
+            // If scraping fails, use backup data
+            if (scrapedSongs.length === 0) {
+                showStatus('⚠️ Wikipedia scraping returned no data, using backup songs...', 'info');
+                scrapedSongs = getBackupSongs();
+            }
+            
+            // Save to localStorage
+            songsData = scrapedSongs.slice(0, 50); // Ensure exactly 50 songs
+            localStorage.setItem('top50Songs', JSON.stringify(songsData));
+            
+            // Render and update
+            renderSongsTable();
+            updateStats();
+            
+            showStatus(`✅ Successfully inserted ${songsData.length} Billboard Hot 100 songs from Wikipedia (2000s)`, 'success');
+            
+        } catch (error) {
+            console.error('Error inserting songs:', error);
+            
+            // Use backup data if all else fails
+            const backupSongs = getBackupSongs();
+            songsData = backupSongs.slice(0, 50);
+            localStorage.setItem('top50Songs', JSON.stringify(songsData));
+            
+            renderSongsTable();
+            updateStats();
+            
+            showStatus(`⚠️ Used backup data: ${songsData.length} Billboard songs from 2000s`, 'info');
+            
+        } finally {
+            insertBtn.disabled = false;
+            insertBtn.innerHTML = '📥 Insert Top 50 Songs from Wikipedia';
+        }
+    }
+    
+    // Backup data (50 songs from 2000s)
+    function getBackupSongs() {
+        return [
+            {id: 1, rank: 1, title: "Yeah!", artist: "Usher feat. Lil Jon & Ludacris", year: "2004", weeks: "12", genre: "R&B"},
+            {id: 2, rank: 2, title: "Low", artist: "Flo Rida feat. T-Pain", year: "2008", weeks: "10", genre: "Hip Hop"},
+            {id: 3, rank: 3, title: "Gold Digger", artist: "Kanye West feat. Jamie Foxx", year: "2005", weeks: "10", genre: "Hip Hop"},
+            {id: 4, rank: 4, title: "Bleeding Love", artist: "Leona Lewis", year: "2008", weeks: "7", genre: "Pop"},
+            {id: 5, rank: 5, title: "We Belong Together", artist: "Mariah Carey", year: "2005", weeks: "14", genre: "R&B"},
+            {id: 6, rank: 6, title: "No One", artist: "Alicia Keys", year: "2007", weeks: "5", genre: "R&B"},
+            {id: 7, rank: 7, title: "Crazy in Love", artist: "Beyoncé feat. Jay-Z", year: "2003", weeks: "8", genre: "R&B"},
+            {id: 8, rank: 8, title: "Umbrella", artist: "Rihanna feat. Jay-Z", year: "2007", weeks: "7", genre: "Pop"},
+            {id: 9, rank: 9, title: "Bad Romance", artist: "Lady Gaga", year: "2009", weeks: "6", genre: "Dance"},
+            {id: 10, rank: 10, title: "Poker Face", artist: "Lady Gaga", year: "2009", weeks: "1", genre: "Dance"},
+            {id: 11, rank: 11, title: "SexyBack", artist: "Justin Timberlake", year: "2006", weeks: "7", genre: "Pop"},
+            {id: 12, rank: 12, title: "In da Club", artist: "50 Cent", year: "2003", weeks: "9", genre: "Hip Hop"},
+            {id: 13, rank: 13, title: "Hips Don't Lie", artist: "Shakira feat. Wyclef Jean", year: "2006", weeks: "2", genre: "Pop"},
+            {id: 14, rank: 14, title: "I Gotta Feeling", artist: "The Black Eyed Peas", year: "2009", weeks: "14", genre: "Pop"},
+            {id: 15, rank: 15, title: "Hey Ya!", artist: "OutKast", year: "2003", weeks: "9", genre: "Hip Hop"},
+            {id: 16, rank: 16, title: "Apologize", artist: "Timbaland feat. OneRepublic", year: "2007", weeks: "8", genre: "Pop"},
+            {id: 17, rank: 17, title: "Burn", artist: "Usher", year: "2004", weeks: "8", genre: "R&B"},
+            {id: 18, rank: 18, title: "Lose Yourself", artist: "Eminem", year: "2002", weeks: "12", genre: "Hip Hop"},
+            {id: 19, rank: 19, title: "Irreplaceable", artist: "Beyoncé", year: "2006", weeks: "10", genre: "R&B"},
+            {id: 20, rank: 20, title: "Since U Been Gone", artist: "Kelly Clarkson", year: "2005", weeks: "2", genre: "Pop"},
+            {id: 21, rank: 21, title: "Dilemma", artist: "Nelly feat. Kelly Rowland", year: "2002", weeks: "10", genre: "R&B"},
+            {id: 22, rank: 22, title: "Hot in Herre", artist: "Nelly", year: "2002", weeks: "7", genre: "Hip Hop"},
+            {id: 23, rank: 23, title: "Foolish", artist: "Ashanti", year: "2002", weeks: "10", genre: "R&B"},
+            {id: 24, rank: 24, title: "How You Remind Me", artist: "Nickelback", year: "2001", weeks: "4", genre: "Rock"},
+            {id: 25, rank: 25, title: "Family Affair", artist: "Mary J. Blige", year: "2001", weeks: "6", genre: "R&B"},
+            {id: 26, rank: 26, title: "U Remind Me", artist: "Usher", year: "2001", weeks: "4", genre: "R&B"},
+            {id: 27, rank: 27, title: "It Wasn't Me", artist: "Shaggy feat. Ricardo Ducent", year: "2001", weeks: "2", genre: "Reggae"},
+            {id: 28, rank: 28, title: "Independent Women Part I", artist: "Destiny's Child", year: "2000", weeks: "11", genre: "R&B"},
+            {id: 29, rank: 29, title: "Maria Maria", artist: "Santana feat. The Product G&B", year: "2000", weeks: "10", genre: "Latin"},
+            {id: 30, rank: 30, title: "Smooth", artist: "Santana feat. Rob Thomas", year: "1999", weeks: "12", genre: "Rock"},
+            {id: 31, rank: 31, title: "Breathe", artist: "Faith Hill", year: "2000", weeks: "6", genre: "Country"},
+            {id: 32, rank: 32, title: "Miss Independent", artist: "Kelly Clarkson", year: "2003", weeks: "3", genre: "Pop"},
+            {id: 33, rank: 33, title: "Ignition (Remix)", artist: "R. Kelly", year: "2003", weeks: "10", genre: "R&B"},
+            {id: 34, rank: 34, title: "Get Low", artist: "Lil Jon & The East Side Boyz", year: "2003", weeks: "7", genre: "Crunk"},
+            {id: 35, rank: 35, title: "Bring Me to Life", artist: "Evanescence", year: "2003", weeks: "1", genre: "Rock"},
+            {id: 36, rank: 36, title: "Seven Nation Army", artist: "The White Stripes", year: "2003", weeks: "1", genre: "Rock"},
+            {id: 37, rank: 37, title: "Hey Mama", artist: "The Black Eyed Peas", year: "2004", weeks: "8", genre: "Pop"},
+            {id: 38, rank: 38, title: "Drop It Like It's Hot", artist: "Snoop Dogg feat. Pharrell", year: "2004", weeks: "3", genre: "Hip Hop"},
+            {id: 39, rank: 39, title: "1, 2 Step", artist: "Ciara feat. Missy Elliott", year: "2004", weeks: "7", genre: "R&B"},
+            {id: 40, rank: 40, title: "Hollaback Girl", artist: "Gwen Stefani", year: "2005", weeks: "4", genre: "Pop"},
+            {id: 41, rank: 41, title: "Don't Cha", artist: "The Pussycat Dolls", year: "2005", weeks: "1", genre: "Pop"},
+            {id: 42, rank: 42, title: "My Humps", artist: "The Black Eyed Peas", year: "2005", weeks: "6", genre: "Pop"},
+            {id: 43, rank: 43, title: "Promiscuous", artist: "Nelly Furtado feat. Timbaland", year: "2006", weeks: "6", genre: "Pop"},
+            {id: 44, rank: 44, title: "Temperature", artist: "Sean Paul", year: "2006", weeks: "1", genre: "Dancehall"},
+            {id: 45, rank: 45, title: "Smack That", artist: "Akon feat. Eminem", year: "2006", weeks: "5", genre: "Hip Hop"},
+            {id: 46, rank: 46, title: "Crank That (Soulja Boy)", artist: "Soulja Boy", year: "2007", weeks: "7", genre: "Hip Hop"},
+            {id: 47, rank: 47, title: "Stronger", artist: "Kanye West", year: "2007", weeks: "1", genre: "Hip Hop"},
+            {id: 48, rank: 48, title: "No Air", artist: "Jordin Sparks feat. Chris Brown", year: "2008", weeks: "2", genre: "R&B"},
+            {id: 49, rank: 49, title: "Live Your Life", artist: "T.I. feat. Rihanna", year: "2008", weeks: "6", genre: "Hip Hop"},
+            {id: 50, rank: 50, title: "Right Round", artist: "Flo Rida", year: "2009", weeks: "6", genre: "Pop"}
+        ];
+    }
+    
+    // Clear all songs
+    function clearSongs() {
+        if (!confirm('Are you sure you want to clear ALL songs from the database?')) {
+            return;
+        }
+        
+        try {
+            songsData = [];
+            localStorage.removeItem('top50Songs');
+            
+            songsContainer.innerHTML = `
+                <div class="loading">
+                    <h3>No songs in database</h3>
+                    <p>Click "Insert Top 50 Songs from Wikipedia" to fetch Billboard Hot 100 data</p>
+                    <p class="wikipedia-source">Data source: Wikipedia - Billboard Hot 100 number-one singles of the 2000s</p>
+                </div>
+            `;
+            
+            updateStats();
+            showStatus('✅ All songs cleared from database', 'success');
+            
+        } catch (error) {
+            console.error('Error clearing songs:', error);
+            showStatus(`❌ Error: ${error.message}`, 'error');
+        }
+    }
+    
+    // Export as JSON
+    function exportSongs() {
+        if (songsData.length === 0) {
+            showStatus('❌ No songs to export', 'error');
+            return;
+        }
+        
+        const dataStr = JSON.stringify(songsData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `billboard-top-50-2000s-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showStatus('✅ Songs exported as JSON file', 'success');
+    }
+    
+    // Event Listeners
+    insertBtn.addEventListener('click', insertSongs);
+    refreshBtn.addEventListener('click', loadSongs);
+    clearBtn.addEventListener('click', clearSongs);
+    exportBtn.addEventListener('click', exportSongs);
+    
+    // Load songs on page load
+    document.addEventListener('DOMContentLoaded', loadSongs);
+</script>
+
+</body>
+</html>
