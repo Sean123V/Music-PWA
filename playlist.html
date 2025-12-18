@@ -56,20 +56,23 @@
     <div class="playlist-control-card">
       <h2>Add Song to Playlist</h2>
       <div class="input-group">
-        <input type="text" id="songSearchInput" placeholder="Type song name" class="styled-input">
+        <input type="text" id="songSearchInput" placeholder="Loading songs..." class="styled-input">
+        <div id="songSuggestions" class="suggestions-box"></div>
         <select id="playlistSelect" class="styled-select">
           <option value="">Select a playlist</option>
         </select>
         <button id="addSongBtn" class="cyber-button">Add Song</button>
+        <button id="refreshSongsBtn" class="cyber-button" style="background: linear-gradient(145deg, #ff8800, #ffaa00);">
+          🔄 Refresh Songs
+        </button>
       </div>
-      <div id="songSuggestions" class="suggestions-box"></div>
+      <div id="loadingStatus" style="margin-top: 10px; color: #00fff7; font-size: 14px;">Connecting to database...</div>
     </div>
 
     <!-- PLAYLIST DISPLAY -->
     <div class="playlists-display">
       <h2>Your Playlists</h2>
       <div id="playlistsContainer" class="playlists-grid">
-        <!-- Playlists will appear here -->
         <div class="empty-state" id="emptyState">
           <p>No playlists yet. Create your first one!</p>
         </div>
@@ -85,10 +88,9 @@
   </div>
 
   <script>
-    console.log("🎵 PLAYLIST PAGE - LIVE SERVER COMPATIBLE");
-    console.log("URL:", window.location.href);
+    console.log("🎵 PLAYLIST PAGE - COMPLETE REWRITE WITH FIXES");
     
-    // Grab DOM elements
+    // DOM elements
     const playlistNameInput = document.getElementById("playlistNameInput");
     const createPlaylistBtn = document.getElementById("createPlaylistBtn");
     const songSearchInput = document.getElementById("songSearchInput");
@@ -98,513 +100,776 @@
     const audioPlayer = document.getElementById("audioPlayer");
     const songSuggestions = document.getElementById("songSuggestions");
     const emptyState = document.getElementById("emptyState");
+    const refreshSongsBtn = document.getElementById("refreshSongsBtn");
+    const loadingStatus = document.getElementById("loadingStatus");
 
-    // Store playlists in localStorage for persistence
-    let playlists = JSON.parse(localStorage.getItem("musicPlaylists") || "{}");
-
-    // Load uploaded songs from IndexedDB
+    // State variables
+    let playlists = {};
     let availableSongs = [];
-
-    // ========== LIVE SERVER FIX ==========
-    // The problem: IndexedDB can have origin/permission issues with Live Server
-    // Solution: Try multiple approaches and debug
+    let dbReady = false;
+    
+    // Database config - MUST match upload.html
+    const DB_NAME = 'MusicAppDB_V2';
+    const STORE_NAME = 'uploadedSongs';
+    const DB_VERSION = 1;
+    
+    // ========== UTILITY FUNCTIONS ==========
+    
+    function updateLoadingStatus(message, isError = false) {
+      if (loadingStatus) {
+        loadingStatus.textContent = message;
+        loadingStatus.style.color = isError ? '#ff4444' : '#00fff7';
+      }
+      console.log(message);
+    }
+    
+    function formatFileSize(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+    
+    // ========== STORAGE FUNCTIONS ==========
+    
+    function loadPlaylistsFromStorage() {
+      try {
+        const stored = localStorage.getItem("musicPlaylists");
+        console.log("📦 Loading from localStorage:", stored);
+        
+        if (!stored || stored === "null" || stored === "undefined") {
+          console.log("No playlists in storage, starting fresh");
+          playlists = {};
+          return {};
+        }
+        
+        const parsed = JSON.parse(stored);
+        console.log("✅ Parsed playlists:", parsed);
+        
+        // Verify the data structure
+        if (typeof parsed !== 'object' || parsed === null) {
+          console.warn("Invalid playlist data, resetting");
+          playlists = {};
+          return {};
+        }
+        
+        playlists = parsed;
+        console.log("✅ Loaded playlists successfully:", playlists);
+        return playlists;
+      } catch (error) {
+        console.error("❌ Error loading playlists:", error);
+        playlists = {};
+        return {};
+      }
+    }
+    
+    function savePlaylistsToStorage() {
+      try {
+        // Don't save if playlists is somehow undefined or null
+        if (!playlists) {
+          console.error("❌ Attempted to save null/undefined playlists - BLOCKED");
+          return false;
+        }
+        
+        const jsonString = JSON.stringify(playlists);
+        
+        // Don't save empty object if we previously had data
+        const existing = localStorage.getItem("musicPlaylists");
+        if (jsonString === '{}' && existing && existing !== '{}') {
+          console.warn("⚠️ Attempted to save empty playlists when data exists - BLOCKED");
+          console.warn("Existing data:", existing);
+          console.warn("Use clearAllPlaylists() if you really want to delete everything");
+          return false;
+        }
+        
+        localStorage.setItem("musicPlaylists", jsonString);
+        console.log("💾 Saved to localStorage:", jsonString);
+        console.log("Current playlists object:", playlists);
+        
+        // Verify it was saved
+        const verification = localStorage.getItem("musicPlaylists");
+        if (verification === jsonString) {
+          console.log("✅ Save verified successfully");
+          return true;
+        } else {
+          console.error("❌ Save verification failed!");
+          return false;
+        }
+      } catch (error) {
+        console.error("❌ Error saving playlists:", error);
+        return false;
+      }
+    }
+    
+    // ========== DATABASE FUNCTIONS ==========
     
     async function loadUploadedSongs() {
-      console.log("🔍 Looking for uploaded songs...");
+      console.log("🔍 Loading songs from IndexedDB...");
+      updateLoadingStatus("Loading songs from database...");
       
-      // First, check if upload page has stored songs in localStorage (simpler approach)
-      try {
-        // Try to get from localStorage first (upload page might store them there)
-        const fromLocalStorage = localStorage.getItem('uploadedSongsList');
-        if (fromLocalStorage) {
-          const songs = JSON.parse(fromLocalStorage);
-          console.log("📦 Found songs in localStorage:", songs.length);
-          return songs;
+      return new Promise((resolve) => {
+        if (!window.indexedDB) {
+          console.error("❌ IndexedDB not supported");
+          updateLoadingStatus("Browser doesn't support offline storage", true);
+          resolve([]);
+          return;
         }
-      } catch (e) {
-        console.log("No songs in localStorage");
-      }
-      
-      // Try IndexedDB with multiple database names (Live Server might change things)
-      const dbNames = ['MusicAppDB_V2', 'MusicAppDB', 'MusicLibraryDB', 'MusicUploaderDB'];
-      
-      for (const dbName of dbNames) {
-        console.log(`Trying database: ${dbName}`);
+
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
         
-        try {
-          const songs = await new Promise((resolve) => {
-            const request = indexedDB.open(dbName, 1);
+        request.onerror = (event) => {
+          console.error("❌ Database error:", event.target.error);
+          updateLoadingStatus("Error opening database", true);
+          resolve([]);
+        };
+        
+        request.onsuccess = (event) => {
+          const db = event.target.result;
+          console.log("✅ Database opened successfully");
+          
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            console.log("⚠️ No songs store found");
+            updateLoadingStatus("No songs uploaded yet. Go to Upload page.", true);
+            db.close();
+            dbReady = false;
+            resolve([]);
+            return;
+          }
+          
+          try {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const getAllRequest = store.getAll();
             
-            request.onsuccess = function(event) {
-              const db = event.target.result;
+            getAllRequest.onsuccess = () => {
+              const songs = getAllRequest.result || [];
+              console.log(`✅ Loaded ${songs.length} songs:`, songs.map(s => s.name));
               
-              // Check all object stores
-              const storeNames = Array.from(db.objectStoreNames);
-              console.log("Available stores:", storeNames);
-              
-              // Try each store
-              for (const storeName of storeNames) {
-                try {
-                  const transaction = db.transaction([storeName], 'readonly');
-                  const store = transaction.objectStore(storeName);
-                  const getAllRequest = store.getAll();
-                  
-                  getAllRequest.onsuccess = function() {
-                    const songs = getAllRequest.result || [];
-                    console.log(`Found ${songs.length} songs in ${dbName}.${storeName}`);
-                    db.close();
-                    
-                    if (songs.length > 0) {
-                      // Process songs to match expected format
-                      const processedSongs = songs.map(song => {
-                        return {
-                          id: song.id || Date.now(),
-                          name: song.name || song.filename || 'Unknown',
-                          type: song.type || 'audio/mpeg',
-                          size: song.size || 0,
-                          data: song.data || song.audioData,
-                          uploadDate: song.uploadDate || new Date().toISOString()
-                        };
-                      }).filter(song => song.data); // Only keep songs with audio data
-                      
-                      console.log(`✅ Processed ${processedSongs.length} valid songs`);
-                      resolve(processedSongs);
-                    } else {
-                      resolve([]);
-                    }
-                  };
-                  
-                  getAllRequest.onerror = function() {
-                    console.log(`Error reading from ${storeName}`);
-                    db.close();
-                    resolve([]);
-                  };
-                  
-                } catch (e) {
-                  console.log(`Error accessing ${storeName}:`, e);
-                }
+              if (songs.length > 0) {
+                updateLoadingStatus(`✅ Loaded ${songs.length} song${songs.length !== 1 ? 's' : ''}!`);
+              } else {
+                updateLoadingStatus("No songs in library", true);
               }
               
-              // If no songs found in any store
+              dbReady = true;
+              db.close();
+              resolve(songs);
+            };
+            
+            getAllRequest.onerror = (err) => {
+              console.error("❌ Error reading songs:", err);
+              updateLoadingStatus("Error reading songs", true);
               db.close();
               resolve([]);
             };
             
-            request.onerror = function() {
-              console.log(`Cannot open ${dbName}`);
-              resolve([]);
-            };
-            
-            request.onupgradeneeded = function() {
-              console.log(`${dbName} doesn't exist or needs upgrade`);
-              event.target.result.close();
-              resolve([]);
-            };
-          });
-          
-          if (songs && songs.length > 0) {
-            return songs;
+          } catch (error) {
+            console.error("❌ Transaction error:", error);
+            db.close();
+            resolve([]);
           }
-          
-        } catch (e) {
-          console.log(`Error with ${dbName}:`, e);
-        }
-      }
-      
-      console.log("❌ No songs found in any database");
-      return [];
-    }
-
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', async function() {
-      console.log("🚀 Initializing playlist page...");
-      
-      try {
-        availableSongs = await loadUploadedSongs();
-        console.log(`🎵 Available songs: ${availableSongs.length}`);
+        };
         
-        if (availableSongs.length > 0) {
-          console.log("Song names:", availableSongs.map(s => s.name));
-        }
-        
-        updatePlaylistSelect();
-        renderPlaylists();
-        setupSongSearch();
-        
-        // Update search placeholder based on whether songs are found
-        if (availableSongs.length === 0) {
-          songSearchInput.placeholder = "No songs found. Upload songs first!";
-          songSearchInput.disabled = true;
-          addSongBtn.disabled = true;
-          addSongBtn.textContent = "Upload Songs First";
-        } else {
-          songSearchInput.placeholder = `Type song name (${availableSongs.length} available)`;
-        }
-        
-      } catch (error) {
-        console.error("Initialization error:", error);
-      }
-    });
-
-    // Create playlist
-    createPlaylistBtn.addEventListener("click", () => {
-      const name = playlistNameInput.value.trim();
-      if (!name) {
-        alert("Please enter a playlist name.");
-        return;
-      }
-      if (playlists[name]) {
-        alert("Playlist already exists.");
-        return;
-      }
-      
-      playlists[name] = [];
-      savePlaylists();
-      updatePlaylistSelect();
-      renderPlaylists();
-      playlistNameInput.value = "";
-      
-      // Show success feedback
-      const originalText = createPlaylistBtn.textContent;
-      createPlaylistBtn.textContent = "✓ Created!";
-      createPlaylistBtn.style.background = "linear-gradient(145deg, #00ff88, #00cc66)";
-      setTimeout(() => {
-        createPlaylistBtn.textContent = originalText;
-        createPlaylistBtn.style.background = "linear-gradient(145deg, #00aaa5, #00fff7)";
-      }, 1500);
-    });
-
-    // Add song to playlist
-    addSongBtn.addEventListener("click", () => {
-      const playlistName = playlistSelect.value;
-      const searchName = songSearchInput.value.trim();
-      
-      if (!playlistName) {
-        alert("Please select a playlist.");
-        return;
-      }
-      if (!searchName) {
-        alert("Please type a song name.");
-        return;
-      }
-      
-      if (availableSongs.length === 0) {
-        alert("No uploaded songs found. Please upload songs on the Upload page first.");
-        window.location.href = 'upload.html';
-        return;
-      }
-
-      // Find song (case-insensitive partial match)
-      const song = availableSongs.find(s => 
-        s.name.toLowerCase().includes(searchName.toLowerCase())
-      );
-      
-      if (!song) {
-        // Show some available songs to help user
-        const sampleSongs = availableSongs.slice(0, 3).map(s => s.name).join(', ');
-        alert(`"${searchName}" not found. Available songs include: ${sampleSongs}${availableSongs.length > 3 ? '...' : ''}`);
-        return;
-      }
-
-      // Check if song already in playlist
-      if (playlists[playlistName].some(s => s.id === song.id)) {
-        alert(`"${song.name}" is already in this playlist.`);
-        return;
-      }
-
-      playlists[playlistName].push(song);
-      savePlaylists();
-      renderPlaylists();
-      songSearchInput.value = "";
-      songSuggestions.style.display = 'none';
-      
-      // Show success feedback
-      const originalText = addSongBtn.textContent;
-      addSongBtn.textContent = "✓ Added!";
-      addSongBtn.style.background = "linear-gradient(145deg, #00ff88, #00cc66)";
-      setTimeout(() => {
-        addSongBtn.textContent = originalText;
-        addSongBtn.style.background = "linear-gradient(145deg, #00aaa5, #00fff7)";
-      }, 1500);
-    });
-
-    // Setup song search with suggestions - IMPROVED
-    function setupSongSearch() {
-      songSearchInput.addEventListener('input', function() {
-        const query = this.value.toLowerCase();
-        if (query.length === 0) {
-          songSuggestions.style.display = 'none';
-          return;
-        }
-        
-        if (availableSongs.length === 0) {
-          songSuggestions.innerHTML = `
-            <div class="suggestion-item" style="color: #ff5555; padding: 10px; text-align: center;">
-              No uploaded songs found.<br>
-              <button onclick="window.location.href='upload.html'" 
-                      style="margin-top: 5px; padding: 5px 10px; background: #00fff7; color: black; border: none; border-radius: 3px; cursor: pointer;">
-                Go to Upload Page
-              </button>
-            </div>
-          `;
-          songSuggestions.style.display = 'block';
-          return;
-        }
-        
-        const filtered = availableSongs.filter(song => 
-          song.name.toLowerCase().includes(query)
-        ).slice(0, 8); // Show more suggestions
-        
-        if (filtered.length === 0) {
-          songSuggestions.innerHTML = `
-            <div class="suggestion-item" style="color: #888; padding: 10px; text-align: center;">
-              No matches found
-            </div>
-          `;
-          songSuggestions.style.display = 'block';
-          return;
-        }
-        
-        songSuggestions.innerHTML = filtered.map(song => `
-          <div class="suggestion-item" data-song-name="${song.name}" 
-               style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
-            <span>${song.name}</span>
-            <small style="color: #aaa; font-size: 11px;">${formatFileSize(song.size)}</small>
-          </div>
-        `).join('');
-        
-        songSuggestions.style.display = 'block';
-        
-        // Add click listeners to suggestions
-        songSuggestions.querySelectorAll('.suggestion-item').forEach(item => {
-          item.addEventListener('click', function() {
-            if (this.dataset.songName) {
-              songSearchInput.value = this.dataset.songName;
-              songSuggestions.style.display = 'none';
-            }
-          });
-          
-          // Hover effect
-          item.addEventListener('mouseenter', function() {
-            this.style.backgroundColor = '#222';
-          });
-          item.addEventListener('mouseleave', function() {
-            this.style.backgroundColor = '';
-          });
-        });
-      });
-      
-      // Hide suggestions when clicking elsewhere
-      document.addEventListener('click', function(e) {
-        if (!songSearchInput.contains(e.target) && !songSuggestions.contains(e.target)) {
-          songSuggestions.style.display = 'none';
-        }
-      });
-      
-      // Also hide on Escape key
-      songSearchInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-          songSuggestions.style.display = 'none';
-        }
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            const store = db.createObjectStore(STORE_NAME, { 
+              keyPath: 'id', 
+              autoIncrement: true 
+            });
+            store.createIndex('name', 'name', { unique: false });
+          }
+        };
       });
     }
-
-    // Helper function to format file size
-    function formatFileSize(bytes) {
-      if (!bytes || bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
-
+    
+    // ========== UI RENDERING FUNCTIONS ==========
+    
     function updatePlaylistSelect() {
+      console.log("🔄 Updating playlist dropdown");
       playlistSelect.innerHTML = "<option value=''>Select a playlist</option>";
+      
       Object.keys(playlists).forEach(name => {
         const option = document.createElement("option");
         option.value = name;
-        option.textContent = name;
+        option.textContent = `${name} (${playlists[name].length} songs)`;
         playlistSelect.appendChild(option);
       });
+      
+      console.log("Dropdown updated with", Object.keys(playlists).length, "playlists");
     }
-
-    // Global variables for playlist playback
-    window.currentPlaylist = null;
-    window.currentSongIndex = null;
-    window.playlistPlaying = false;
-
+    
     function renderPlaylists() {
-      if (Object.keys(playlists).length === 0) {
+      console.log("🎨 ===== RENDERING PLAYLISTS =====");
+      console.log("Playlists object:", JSON.stringify(playlists, null, 2));
+      
+      const playlistNames = Object.keys(playlists);
+      console.log("Playlist names:", playlistNames);
+      
+      if (playlistNames.length === 0) {
+        console.log("❌ No playlists to render");
         emptyState.style.display = 'block';
-        playlistsContainer.innerHTML = '<div class="empty-state" id="emptyState"><p>No playlists yet. Create your first one!</p></div>';
+        playlistsContainer.innerHTML = '<div class="empty-state"><p>No playlists yet. Create your first one!</p></div>';
         return;
       }
       
       emptyState.style.display = 'none';
       playlistsContainer.innerHTML = '';
+      console.log("✅ Container cleared, starting render...");
       
-      Object.keys(playlists).forEach(name => {
-        const playlistCard = document.createElement("div");
-        playlistCard.className = "playlist-card";
+      playlistNames.forEach(name => {
+        const songs = playlists[name] || [];
+        console.log(`  📝 Playlist "${name}":`, {
+          songCount: songs.length,
+          songs: songs.map(s => ({ name: s.name, id: s.id }))
+        });
         
-        playlistCard.innerHTML = `
-          <div class="playlist-header">
-            <div class="playlist-header-left">
-              <h3 class="playlist-title">${name}</h3>
-              <span class="song-count">${playlists[name].length} song${playlists[name].length !== 1 ? 's' : ''}</span>
-            </div>
-            <div class="playlist-header-right">
-              <button class="play-control-btn play-all-btn" data-playlist-name="${name}" title="Play all songs">
-                ▶ Play All
-              </button>
-              <button class="play-control-btn skip-btn" data-playlist-name="${name}" title="Skip to next song">
-                ⏭️ Skip
-              </button>
-              <button class="delete-playlist" data-playlist-name="${name}">Delete</button>
-            </div>
-          </div>
-          <ul class="playlist-songs">
-            ${playlists[name].map((song, index) => `
-              <li class="song-item" data-song-name="${song.name}" data-song-index="${index}">
-                <span class="song-name">${song.name}</span>
-                <div class="song-actions">
-                  <button class="play-single-btn" data-playlist-name="${name}" data-song-index="${index}" title="Play this song">▶</button>
-                  <button class="remove-song" data-playlist-name="${name}" data-song-name="${song.name}" title="Remove from playlist">×</button>
-                </div>
-              </li>
-            `).join('')}
-          </ul>
-          <div class="playlist-controls" data-playlist-name="${name}" style="display: none;">
-            <div class="now-playing">
-              <span>Now Playing: <strong class="current-song-name"></strong></span>
-              <span class="song-progress">1/${playlists[name].length}</span>
-            </div>
-            <div class="playback-controls">
-              <button class="control-btn prev-btn" title="Previous song">⏮</button>
-              <button class="control-btn pause-btn" title="Pause" style="display: none;">⏸</button>
-              <button class="control-btn play-btn" title="Play">▶</button>
-              <button class="control-btn next-btn" title="Next song">⏭</button>
-              <button class="control-btn stop-btn" title="Stop">⏹</button>
-            </div>
-          </div>
+        const card = document.createElement("div");
+        card.className = "playlist-card";
+        card.style.cssText = `
+          background: #1a1a1a;
+          border: 2px solid #00fff7;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 20px;
         `;
         
+        // Build songs HTML
+        let songsHTML = '';
+        console.log(`    Building HTML for ${songs.length} songs...`);
+        
+        if (songs.length === 0) {
+          console.log("    ℹ️ Empty playlist, showing message");
+          songsHTML = `
+            <li style="color: #888; font-style: italic; padding: 15px; text-align: center; list-style: none;">
+              No songs in this playlist yet. Add some above!
+            </li>
+          `;
+        } else {
+          console.log("    ✅ Building song list HTML...");
+          songsHTML = songs.map((song, i) => {
+            const html = `
+            <li class="song-item" style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 12px;
+              border-bottom: 1px solid #333;
+              list-style: none;
+              transition: background 0.2s;
+            " 
+            onmouseenter="this.style.background='#222'"
+            onmouseleave="this.style.background=''"
+            data-song-name="${song.name}">
+              <span style="flex: 1; color: #00fff7; margin-right: 15px;">
+                🎵 ${song.name}
+              </span>
+              <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                <button class="play-single-btn" 
+                        data-playlist-name="${name}" 
+                        data-song-index="${i}"
+                        style="
+                          padding: 8px 16px;
+                          background: linear-gradient(145deg, #00fff7, #00cccc);
+                          color: black;
+                          border: none;
+                          border-radius: 4px;
+                          cursor: pointer;
+                          font-weight: bold;
+                          font-size: 14px;
+                          transition: transform 0.2s;
+                        "
+                        onmouseenter="this.style.transform='scale(1.05)'"
+                        onmouseleave="this.style.transform='scale(1)'">
+                  ▶ Play
+                </button>
+                <button class="remove-song" 
+                        data-playlist-name="${name}" 
+                        data-song-id="${song.id}"
+                        data-song-name="${song.name}"
+                        style="
+                          padding: 8px 16px;
+                          background: linear-gradient(145deg, #ff4444, #cc0000);
+                          color: white;
+                          border: none;
+                          border-radius: 4px;
+                          cursor: pointer;
+                          font-weight: bold;
+                          font-size: 14px;
+                          transition: transform 0.2s;
+                        "
+                        onmouseenter="this.style.transform='scale(1.05)'"
+                        onmouseleave="this.style.transform='scale(1)'">
+                  × Remove
+                </button>
+              </div>
+            </li>
+          `;
+            console.log(`      Song ${i+1}: "${song.name}" - HTML length: ${html.length} chars`);
+            return html;
+          }).join('');
+          console.log(`    ✅ Generated ${songsHTML.length} characters of HTML`);
+        }
+        
+        console.log(`    📄 Building playlist card for "${name}"...`);
+        const playlistCard = document.createElement("div");
+        playlistCard.className = "playlist-card";
+        playlistCard.style.cssText = `
+          background: #1a1a1a;
+          border: 2px solid #00fff7;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 20px;
+        `;
+        
+        const cardHTML = `
+          <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #00fff7;
+          ">
+            <div>
+              <h3 style="margin: 0 0 5px 0; color: #00fff7; font-size: 24px;">
+                ${name}
+              </h3>
+              <span style="color: #aaa; font-size: 14px;">
+                ${songs.length} song${songs.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <button class="delete-playlist" 
+                    data-playlist-name="${name}"
+                    style="
+                      padding: 10px 20px;
+                      background: linear-gradient(145deg, #ff4444, #cc0000);
+                      color: white;
+                      border: none;
+                      border-radius: 4px;
+                      cursor: pointer;
+                      font-weight: bold;
+                      font-size: 14px;
+                      transition: transform 0.2s;
+                    "
+                    onmouseenter="this.style.transform='scale(1.05)'"
+                    onmouseleave="this.style.transform='scale(1)'">
+              🗑️ Delete Playlist
+            </button>
+          </div>
+          <ul style="margin: 0; padding: 0;">
+            ${songsHTML}
+          </ul>
+        `;
+        
+        console.log(`    📄 Card HTML length: ${cardHTML.length} chars`);
+        playlistCard.innerHTML = cardHTML;
+        console.log(`    ➕ Appending card to container...`);
         playlistsContainer.appendChild(playlistCard);
-        
-        // Add event listeners (keep your existing code here)
-        // ... [keep all your existing event listener code] ...
-        
+        console.log(`    ✅ Card appended for "${name}"`);
       });
+      
+      console.log("✅ ===== ALL PLAYLISTS RENDERED =====");
+      console.log("Final container children:", playlistsContainer.children.length);
     }
-
-    async function playSong(songName) {
-      try {
-        // Find song in available songs
-        const songData = availableSongs.find(s => s.name === songName);
-        if (!songData) {
-          alert("Song data not found. The song may have been deleted.");
+    
+    // ========== SEARCH FUNCTIONALITY ==========
+    
+    function setupSongSearch() {
+      console.log("🎯 Setting up search with", availableSongs.length, "songs");
+      
+      if (availableSongs.length > 0) {
+        songSearchInput.placeholder = `Search ${availableSongs.length} songs...`;
+        songSearchInput.disabled = false;
+        addSongBtn.disabled = false;
+      } else {
+        songSearchInput.placeholder = "No songs available (upload songs first)";
+        songSearchInput.disabled = false;
+        addSongBtn.disabled = false;
+      }
+      
+      songSearchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        
+        if (!query) {
+          songSuggestions.style.display = 'none';
           return;
         }
         
-        // Convert base64 to Blob
-        const byteCharacters = atob(songData.data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        if (availableSongs.length === 0) {
+          songSuggestions.innerHTML = `
+            <div style="position: absolute; z-index: 1000; background: #1a1a1a; border: 1px solid #ff4444; border-radius: 4px; padding: 15px; text-align: center; color: #ff4444; box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);">
+              <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ No songs in your library</p>
+              <p style="margin: 0 0 15px 0; font-size: 13px; color: #aaa;">Upload songs on the Upload page first</p>
+              <button onclick="window.location.href='upload.html'" 
+                      style="padding: 8px 16px; background: #00fff7; color: black; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                📤 Go to Upload Page
+              </button>
+            </div>
+          `;
+          songSuggestions.style.display = 'block';
+          return;
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: songData.type || 'audio/mpeg' });
-        const objectURL = URL.createObjectURL(blob);
         
-        // Clean up previous URL
+        const filtered = availableSongs.filter(s => 
+          s.name.toLowerCase().includes(query)
+        ).slice(0, 10);
+        
+        if (filtered.length === 0) {
+          songSuggestions.innerHTML = `
+            <div style="padding: 10px; color: #888; text-align: center; background: #1a1a1a; border: 1px solid #333; border-radius: 4px;">
+              No matches for "${query}"
+            </div>
+          `;
+        } else {
+          songSuggestions.innerHTML = filtered.map(song => `
+            <div class="suggestion-item" data-song-name="${song.name}" 
+                 style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; background: #1a1a1a;">
+              <span style="flex: 1;">${song.name}</span>
+              <small style="color: #aaa; font-size: 11px;">${formatFileSize(song.size)}</small>
+            </div>
+          `).join('');
+          
+          songSuggestions.querySelectorAll('.suggestion-item').forEach(item => {
+            item.onclick = (e) => {
+              e.stopPropagation();
+              songSearchInput.value = item.dataset.songName;
+              songSuggestions.style.display = 'none';
+            };
+            item.onmouseenter = () => item.style.backgroundColor = '#222';
+            item.onmouseleave = () => item.style.backgroundColor = '#1a1a1a';
+          });
+        }
+        
+        songSuggestions.style.display = 'block';
+        songSuggestions.style.position = 'absolute';
+        songSuggestions.style.zIndex = '1000';
+        songSuggestions.style.background = '#1a1a1a';
+        songSuggestions.style.border = '1px solid #00fff7';
+        songSuggestions.style.borderRadius = '4px';
+        songSuggestions.style.maxHeight = '300px';
+        songSuggestions.style.overflowY = 'auto';
+        songSuggestions.style.marginTop = '2px';
+        songSuggestions.style.boxShadow = '0 4px 12px rgba(0, 255, 247, 0.3)';
+      });
+      
+      document.addEventListener('click', (e) => {
+        if (!songSearchInput.contains(e.target) && !songSuggestions.contains(e.target)) {
+          songSuggestions.style.display = 'none';
+        }
+      });
+      
+      songSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') songSuggestions.style.display = 'none';
+      });
+    }
+    
+    // ========== EVENT HANDLERS ==========
+    
+    createPlaylistBtn.addEventListener("click", () => {
+      const name = playlistNameInput.value.trim();
+      
+      console.log("🆕 Creating playlist:", name);
+      
+      if (!name) {
+        alert("Please enter a playlist name");
+        return;
+      }
+      
+      if (playlists[name]) {
+        alert("A playlist with this name already exists");
+        return;
+      }
+      
+      // Create new playlist
+      playlists[name] = [];
+      console.log("Created playlist, current playlists:", playlists);
+      
+      // Save to storage
+      const saved = savePlaylistsToStorage();
+      console.log("Save result:", saved);
+      
+      // Update UI
+      updatePlaylistSelect();
+      renderPlaylists();
+      playlistNameInput.value = "";
+      
+      // Visual feedback
+      createPlaylistBtn.textContent = `✓ Created "${name}"!`;
+      createPlaylistBtn.style.background = "linear-gradient(145deg, #00ff88, #00cc66)";
+      setTimeout(() => {
+        createPlaylistBtn.textContent = "Create Playlist";
+        createPlaylistBtn.style.background = "";
+      }, 2000);
+    });
+    
+    addSongBtn.addEventListener("click", () => {
+      const playlistName = playlistSelect.value;
+      const searchName = songSearchInput.value.trim();
+      
+      console.log("➕ Adding song:", searchName, "to playlist:", playlistName);
+      
+      if (!playlistName) {
+        alert("Please select a playlist first");
+        return;
+      }
+      
+      if (!searchName) {
+        alert("Please type or select a song name");
+        return;
+      }
+      
+      if (availableSongs.length === 0) {
+        if (confirm("No songs in your library. Go to Upload page?")) {
+          window.location.href = 'upload.html';
+        }
+        return;
+      }
+
+      // Find song
+      const song = availableSongs.find(s => 
+        s.name.toLowerCase() === searchName.toLowerCase() ||
+        s.name.toLowerCase().includes(searchName.toLowerCase())
+      );
+      
+      console.log("Found song:", song);
+      
+      if (!song) {
+        alert(`Song "${searchName}" not found in your library.`);
+        return;
+      }
+
+      // Check if already in playlist
+      if (playlists[playlistName].some(s => s.id === song.id)) {
+        alert(`"${song.name}" is already in this playlist`);
+        return;
+      }
+
+      // Add to playlist
+      playlists[playlistName].push(song);
+      console.log("Added song. Playlist now has:", playlists[playlistName]);
+      
+      // Save
+      const saved = savePlaylistsToStorage();
+      console.log("Save result:", saved);
+      
+      // Update UI
+      updatePlaylistSelect();
+      renderPlaylists();
+      
+      songSearchInput.value = "";
+      songSuggestions.style.display = 'none';
+      
+      // Visual feedback
+      addSongBtn.textContent = `✓ Added "${song.name}"!`;
+      addSongBtn.style.background = "linear-gradient(145deg, #00ff88, #00cc66)";
+      setTimeout(() => {
+        addSongBtn.textContent = "Add Song";
+        addSongBtn.style.background = "";
+      }, 2000);
+    });
+    
+    refreshSongsBtn.addEventListener('click', async () => {
+      console.log("🔄 Manual refresh");
+      updateLoadingStatus("Refreshing...");
+      refreshSongsBtn.disabled = true;
+      refreshSongsBtn.textContent = "🔄 Loading...";
+      
+      await new Promise(r => setTimeout(r, 300));
+      
+      availableSongs = await loadUploadedSongs();
+      
+      if (availableSongs.length > 0) {
+        songSearchInput.placeholder = `Search ${availableSongs.length} songs...`;
+      } else {
+        songSearchInput.placeholder = "No songs available";
+      }
+      
+      refreshSongsBtn.disabled = false;
+      refreshSongsBtn.textContent = "🔄 Refresh Songs";
+      
+      if (availableSongs.length > 0) {
+        setTimeout(() => updateLoadingStatus(""), 3000);
+      }
+    });
+    
+    // Event delegation for playlist actions
+    playlistsContainer.addEventListener('click', (e) => {
+      // Delete playlist
+      if (e.target.classList.contains('delete-playlist')) {
+        const name = e.target.dataset.playlistName;
+        console.log("🗑️ Deleting playlist:", name);
+        
+        if (confirm(`Delete playlist "${name}"?`)) {
+          delete playlists[name];
+          savePlaylistsToStorage();
+          updatePlaylistSelect();
+          renderPlaylists();
+        }
+      }
+      
+      // Remove song
+      if (e.target.classList.contains('remove-song')) {
+        const playlistName = e.target.dataset.playlistName;
+        const songName = e.target.dataset.songName;
+        console.log("➖ Removing song:", songName, "from:", playlistName);
+        
+        const idx = playlists[playlistName].findIndex(s => s.name === songName);
+        if (idx > -1) {
+          playlists[playlistName].splice(idx, 1);
+          savePlaylistsToStorage();
+          updatePlaylistSelect();
+          renderPlaylists();
+        }
+      }
+      
+      // Play song
+      if (e.target.classList.contains('play-single-btn')) {
+        const playlistName = e.target.dataset.playlistName;
+        const songIndex = parseInt(e.target.dataset.songIndex);
+        const song = playlists[playlistName][songIndex];
+        if (song) playSong(song);
+      }
+    });
+    
+    // ========== AUDIO PLAYBACK ==========
+    
+    async function playSong(song) {
+      console.log("▶ Playing:", song.name);
+      
+      try {
+        const byteChars = atob(song.data);
+        const byteNums = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) {
+          byteNums[i] = byteChars.charCodeAt(i);
+        }
+        const bytes = new Uint8Array(byteNums);
+        const blob = new Blob([bytes], { type: song.type || 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        
         if (audioPlayer.src && audioPlayer.src.startsWith('blob:')) {
           URL.revokeObjectURL(audioPlayer.src);
         }
         
-        audioPlayer.src = objectURL;
+        audioPlayer.src = url;
         audioPlayer.load();
+        await audioPlayer.play();
         
-        // Try to play
-        const playPromise = audioPlayer.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Playback failed:", error);
-          });
-        }
-        
-        // Update UI
-        document.querySelectorAll('.pause-btn').forEach(btn => {
-          btn.style.display = 'inline-block';
-        });
-        document.querySelectorAll('.play-btn').forEach(btn => {
-          btn.style.display = 'none';
-        });
-        
-        // Highlight playing song
         document.querySelectorAll('.song-item').forEach(item => {
-          item.classList.remove('playing');
-          if (item.dataset.songName === songName) {
-            item.classList.add('playing');
-          }
+          item.classList.toggle('playing', item.dataset.songName === song.name);
         });
         
-        // Clean up URL when done
-        audioPlayer.addEventListener('ended', function cleanup() {
-          URL.revokeObjectURL(objectURL);
-          audioPlayer.removeEventListener('ended', cleanup);
-        }, { once: true });
+        audioPlayer.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
         
       } catch (error) {
-        console.error("Error playing song:", error);
-        alert("Could not play song. There might be an issue with the audio file.");
+        console.error("❌ Playback error:", error);
+        alert("Could not play song: " + error.message);
       }
     }
-
-    function savePlaylists() {
-      localStorage.setItem("musicPlaylists", JSON.stringify(playlists));
-    }
-
-    // Debug function for Live Server
-    window.debugPlaylist = function() {
-      console.log("=== LIVE SERVER DEBUG ===");
-      console.log("URL:", window.location.href);
-      console.log("Origin:", window.location.origin);
-      console.log("Available songs:", availableSongs);
-      console.log("Available song names:", availableSongs.map(s => s.name));
-      console.log("Playlists:", playlists);
+    
+    // ========== KEYBOARD SHORTCUTS ==========
+    
+    playlistNameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') createPlaylistBtn.click();
+    });
+    
+    songSearchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addSongBtn.click();
+    });
+    
+    // ========== INITIALIZATION ==========
+    
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log("🚀 Initializing playlist page...");
       
-      // Test IndexedDB access
-      const request = indexedDB.open('MusicAppDB_V2', 1);
-      request.onsuccess = function(e) {
-        const db = e.target.result;
-        console.log("Database opened, stores:", Array.from(db.objectStoreNames));
-        db.close();
-      };
-      request.onerror = function(e) {
-        console.log("Cannot open database:", e.target.error);
-      };
-    };
-
-    // Keyboard shortcuts
-    playlistNameInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        createPlaylistBtn.click();
+      // Step 1: Load playlists from storage FIRST
+      console.log("Step 1: Loading playlists from storage...");
+      const loadedPlaylists = loadPlaylistsFromStorage();
+      console.log("Playlists loaded:", loadedPlaylists);
+      console.log("Playlists object after load:", playlists);
+      
+      // Verify playlists loaded correctly
+      if (Object.keys(playlists).length > 0) {
+        console.log("✅ Found existing playlists:", Object.keys(playlists));
+      } else {
+        console.log("ℹ️ No existing playlists found");
       }
-    });
-    
-    songSearchInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        addSongBtn.click();
-      }
-    });
-    
-    // Add a refresh button function
-    window.refreshSongs = async function() {
-      console.log("Refreshing songs...");
+      
+      // Step 2: Load songs from database
+      console.log("Step 2: Loading songs from database...");
       availableSongs = await loadUploadedSongs();
-      console.log(`Refreshed: ${availableSongs.length} songs available`);
+      console.log(`📚 Loaded ${availableSongs.length} songs`);
+      
+      // Step 3: Update UI (in correct order)
+      console.log("Step 3: Updating UI...");
+      updatePlaylistSelect();
+      console.log("Step 4: Rendering playlists...");
+      renderPlaylists();
+      console.log("Step 5: Setting up search...");
       setupSongSearch();
-      alert(`Refreshed! Found ${availableSongs.length} songs`);
+      
+      // Clear status after success
+      if (availableSongs.length > 0) {
+        setTimeout(() => updateLoadingStatus(""), 3000);
+      }
+      
+      console.log("✅ Initialization complete");
+      console.log("Final state - Playlists:", JSON.stringify(playlists, null, 2));
+    });
+    
+    // ========== DEBUG FUNCTIONS ==========
+    
+    window.debugPlaylist = () => {
+      console.log("=== PLAYLIST DEBUG INFO ===");
+      console.log("Available songs:", availableSongs.length);
+      console.log("Songs:", availableSongs);
+      console.log("Playlists (memory):", playlists);
+      console.log("Playlists (JSON):", JSON.stringify(playlists, null, 2));
+      console.log("LocalStorage raw:", localStorage.getItem("musicPlaylists"));
+      console.log("Database ready:", dbReady);
+      
+      // Check if data matches
+      const stored = localStorage.getItem("musicPlaylists");
+      const storedObj = stored ? JSON.parse(stored) : {};
+      console.log("Storage matches memory?", JSON.stringify(storedObj) === JSON.stringify(playlists));
+    };
+    
+    window.reloadPlaylists = () => {
+      console.log("🔄 Force reloading playlists...");
+      loadPlaylistsFromStorage();
+      updatePlaylistSelect();
+      renderPlaylists();
+    };
+    
+    window.clearAllPlaylists = () => {
+      if (confirm("⚠️ Delete ALL playlists? This cannot be undone!")) {
+        playlists = {};
+        localStorage.removeItem("musicPlaylists");
+        updatePlaylistSelect();
+        renderPlaylists();
+        console.log("✅ All playlists cleared");
+      }
+    };
+    
+    window.checkStorage = () => {
+      console.log("=== STORAGE CHECK ===");
+      const raw = localStorage.getItem("musicPlaylists");
+      console.log("Raw localStorage:", raw);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          console.log("Parsed:", parsed);
+          console.log("Number of playlists:", Object.keys(parsed).length);
+          Object.keys(parsed).forEach(name => {
+            console.log(`  - "${name}": ${parsed[name].length} songs`);
+          });
+        } catch (e) {
+          console.error("Parse error:", e);
+        }
+      } else {
+        console.log("❌ No data in localStorage");
+      }
     };
   </script>
 
